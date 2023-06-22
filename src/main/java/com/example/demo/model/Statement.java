@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
 
 @Builder
 @ApiModel(description = "Model of bank statements")
@@ -19,7 +20,7 @@ public class Statement {
     @ApiModelProperty(notes = "Account number")
     private String accountNumber;
     @ApiModelProperty(notes = "Operation date and time")
-    private String operationDate;
+    private LocalDateTime operationDate;
     @ApiModelProperty(notes = "Statement beneficiary")
     private String beneficiary;
     @ApiModelProperty(notes = "Statement comment")

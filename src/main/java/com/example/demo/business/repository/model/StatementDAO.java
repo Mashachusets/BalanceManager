@@ -5,8 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import javax.persistence.*;
+import java.time.LocalDateTime;
 
 @Builder
 @Data
@@ -24,7 +24,7 @@ public class StatementDAO {
     private String accountNumber;
 
     @CsvBindByName(column = "operation_date")
-    private String operationDate;
+    private LocalDateTime operationDate;
 
     @CsvBindByName(column = "beneficiary")
     private String beneficiary;
