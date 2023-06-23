@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.business.repository.StatementRepository;
 import com.example.demo.business.repository.model.StatementDAO;
 import com.example.demo.business.service.StatementService;
 import com.example.demo.model.Statement;
@@ -16,10 +17,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletResponse;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
-@Api(tags = "Balance Manager Controller", description = "Controller used to get and create bank statements")
+@Api(tags = "Balance Manager Controller\n" +
+        "Controller used to get and create bank statements")
 @Log4j2
 @RestController
 @RequestMapping("/api")
@@ -27,6 +31,9 @@ public class StatementController {
 
     @Autowired
     private StatementService statementService;
+
+    @Autowired
+    private StatementRepository statementRepository;
 
     @PostMapping("/import")
     @ApiOperation(value = "Saves statement database",
@@ -42,9 +49,6 @@ public class StatementController {
     )
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<String> importCSV(@RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
-            return new ResponseEntity<>("File is empty", HttpStatus.BAD_REQUEST);
-        }
         statementService.importCSV(file);
         return new ResponseEntity<>("File uploaded successfully", HttpStatus.OK);
     }
@@ -73,5 +77,24 @@ public class StatementController {
         String csvContent = statementService.generateCSV(filteredStatements);
 
         response.getWriter().write(csvContent);
+    }
+
+    @GetMapping("/calculate/{accountNumber}")
+    @ApiOperation(value = "Calculates account balance",
+            notes = "If provided an account, calculates amount balance",
+            response = Statement.class)
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = "The request has succeeded", response = Statement.class, responseContainer = "List"),
+            @ApiResponse(code = 401, message = "The request requires user authentication"),
+            @ApiResponse(code = 403, message = "Accessing the resource you were trying to reach is forbidden"),
+            @ApiResponse(code = 404, message = "The server has not found anything matching the Request-URI"),
+            @ApiResponse(code = 500, message = "Server error")}
+    )
+    public ResponseEntity<Map<String, BigDecimal>> calculateBalance(HttpServletResponse response,
+                                 @PathVariable(value = "accountNumber") String accountNumber,
+                                 @RequestParam(value = "startDate", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+                                 @RequestParam(value = "endDate", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
+        Map<String, BigDecimal> filteredAccountStatements = statementService.getMulticurrencyAmounts(accountNumber, startDate, endDate);
+        return ResponseEntity.ok(filteredAccountStatements);
     }
 }

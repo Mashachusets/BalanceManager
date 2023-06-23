@@ -6,7 +6,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Currency;
 
 @Builder
 @ApiModel(description = "Model of bank statements")
@@ -26,7 +28,7 @@ public class Statement {
     @ApiModelProperty(notes = "Statement comment")
     private String comment;
     @ApiModelProperty(notes = "Statement amount")
-    private Long amount;
+    private BigDecimal amount;
     @ApiModelProperty(notes = "Statement currency")
-    private String currency;
+    private Currency currency;
 }

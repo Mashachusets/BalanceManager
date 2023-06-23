@@ -12,13 +12,14 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 public class RestResponseEntityExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(value = {ConstraintViolationException.class})
-    protected ResponseEntity<Object> handleConflict(ConstraintViolationException ex, WebRequest request) {
+    protected ResponseEntity<Object> handleConstraintViolation(ConstraintViolationException ex, WebRequest request) {
         String bodyOfResponse = "Value has to be greater than 0";
         return handleExceptionInternal(ex, bodyOfResponse, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
     }
 
     @ExceptionHandler(value = {MaxUploadSizeExceededException.class})
-    public ResponseEntity <Object> handleMaxSizeException(MaxUploadSizeExceededException exc, String bodyOfResponse, HttpHeaders httpHeaders, HttpStatus expectationFailed, WebRequest request) {
-        return handleExceptionInternal(exc, "File size has to be less than 2MB", new HttpHeaders(), HttpStatus.EXPECTATION_FAILED, request);
+    public ResponseEntity<Object> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex, WebRequest request) {
+        String bodyOfResponse = "File size has to be less than 2MB";
+        return handleExceptionInternal(ex, bodyOfResponse, new HttpHeaders(), HttpStatus.EXPECTATION_FAILED, request);
     }
 }

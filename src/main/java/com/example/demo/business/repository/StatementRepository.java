@@ -10,4 +10,8 @@ import java.util.List;
 public interface StatementRepository extends JpaRepository<StatementDAO, Long> {
 
     List<StatementDAO> findByOperationDateBetween(LocalDateTime startTimestamp, LocalDateTime endTimestamp);
+
+    List<StatementDAO> findByAccountNumberAndOperationDateBetween(String accountNumber, LocalDateTime startTimestamp, LocalDateTime endTimestamp);
+
+    boolean existsStatementByAccountNumber(String accountNumber);
 }

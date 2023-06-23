@@ -11,11 +11,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+
 @Log4j2
 @Service
 public class StatementServiceImpl implements StatementService {
@@ -29,7 +31,11 @@ public class StatementServiceImpl implements StatementService {
     @Override
     public void importCSV(MultipartFile file) {
         log.info("Create new Statements by passing: {}", file);
-        try (Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("File is empty.");
+        }
+        try {
+            Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
             CSVReader csvReader = new CSVReaderBuilder(reader)
                     .withSkipLines(1) // Skip the header line
                     .build();
@@ -38,38 +44,81 @@ public class StatementServiceImpl implements StatementService {
 
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             String[] line;
+            //TODO: check if file is empty after header
             while ((line = csvReader.readNext()) != null) {
                 StatementDAO statement = new StatementDAO();
                 statement.setAccountNumber(line[0]);
                 statement.setOperationDate(LocalDateTime.parse(line[1], formatter));
                 statement.setBeneficiary(line[2]);
                 statement.setComment(line[3]);
-                statement.setAmount(Long.parseLong(line[4]));
-                statement.setCurrency(line[5]);
+                BigDecimal amount = new BigDecimal(line[4]);
+                if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Amount must be greater than zero.");
+                }
+                statement.setAmount(amount);
+                statement.setCurrency(Currency.getInstance(line[5]));
                 statements.add(statement);
             }
-
             log.info("New Statement saved: {}", statements);
             statementRepository.saveAll(statements);
-        } catch (IOException | CsvValidationException e) {
-            // Handle IOException
+        } catch (IOException e) {
+            log.error("Failed to read the file: {}", e.getMessage());
+            throw new RuntimeException("Failed to read the file: " + e.getMessage());
+        } catch (CsvValidationException e) {
+            log.error("CSV validation error: {}", e.getMessage());
+            throw new RuntimeException("CSV validation error: " + e.getMessage());
         }
     }
 
     public List<StatementDAO> getFilteredStatements(LocalDate startDate, LocalDate endDate) {
-
-        LocalDateTime startLocalDateTime = LocalDateTime.MIN;
-        LocalDateTime endLocalDateTime = LocalDateTime.MAX;
-
-        if (startDate != null) {
-            startLocalDateTime = startDate.atStartOfDay();
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Invalid date range. Start date must be before end date.");
         }
-
-        if (endDate != null) {
-            endLocalDateTime = endDate.atStartOfDay();
-        }
+        LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
+        LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse("9999-12-31T23:59:59");
 
         return statementRepository.findByOperationDateBetween(startLocalDateTime, endLocalDateTime);
+    }
+
+    public List<StatementDAO> getFilteredStatements(String accountNumber, LocalDate startDate, LocalDate endDate) {
+        if (accountNumber == null) {
+            throw new IllegalArgumentException("Input account number is required.");
+        }
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Invalid date range. Start date must be before end date.");
+        } else {
+            LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
+            LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse("9999-12-31T23:59:59");
+            return statementRepository.findByAccountNumberAndOperationDateBetween(accountNumber, startLocalDateTime, endLocalDateTime);
+        }
+    }
+
+    public Map<String, BigDecimal> getMulticurrencyAmounts(String accountNumber, LocalDate startDate, LocalDate endDate) {
+        if (accountNumber == null) {
+            throw new IllegalArgumentException("Input account number is required.");
+        }
+        if (!(statementRepository.existsStatementByAccountNumber(accountNumber))) {
+            throw new RuntimeException("Account does not exist: " + accountNumber);
+        }
+        try {
+            if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+                throw new IllegalArgumentException("Invalid date range. Start date must be before end date.");
+            }
+            List<StatementDAO> filteredStatements = getFilteredStatements(accountNumber, startDate, endDate);
+
+            Map<String, BigDecimal> multicurrencyAmounts = new HashMap<>();
+            for (StatementDAO statement : filteredStatements) {
+                String currency = String.valueOf(statement.getCurrency());
+                BigDecimal amount = multicurrencyAmounts.getOrDefault(currency, BigDecimal.ZERO);
+                amount = amount.add(statement.getAmount());
+                multicurrencyAmounts.put(currency, amount);
+            }
+            return multicurrencyAmounts;
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Invalid date format. Please provide dates in the format yyyy-MM-dd.", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Error occurred while calculating multi currency amounts.", e);
+        }
     }
 
     public String generateCSV(List<StatementDAO> statements) {
@@ -79,11 +128,9 @@ public class StatementServiceImpl implements StatementService {
                 .withSeparator(CSVWriter.DEFAULT_SEPARATOR)
                 .withQuoteChar(CSVWriter.NO_QUOTE_CHARACTER)
                 .build()) {
-            // Write the CSV header
             String[] header = {"account_number", "operation_date", "beneficiary", "comment", "amount", "currency"};
             csvWriter.writeNext(header);
 
-            // Write the CSV data for each statement
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             for (StatementDAO statement : statements) {
                 String operationDate = statement.getOperationDate().format(formatter);
@@ -93,14 +140,14 @@ public class StatementServiceImpl implements StatementService {
                         statement.getBeneficiary(),
                         statement.getComment(),
                         String.valueOf(statement.getAmount()),
-                        statement.getCurrency()
+                        String.valueOf(statement.getCurrency())
                 };
                 csvWriter.writeNext(data);
             }
 
             csvWriter.flush();
         } catch (IOException e) {
-            // Handle IOException
+            throw new RuntimeException("Error occurred while generating CSV.", e);
         }
 
         return writer.toString();

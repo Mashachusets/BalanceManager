@@ -6,7 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import javax.persistence.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Currency;
 
 @Builder
 @Data
@@ -33,8 +35,8 @@ public class StatementDAO {
     private String comment;
 
     @CsvBindByName(column = "amount")
-    private Long amount;
+    private BigDecimal amount;
 
     @CsvBindByName(column = "currency")
-    private String currency;
+    private Currency currency;
 }
