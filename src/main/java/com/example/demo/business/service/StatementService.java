@@ -9,6 +9,8 @@ import java.util.Map;
 
 public interface StatementService {
 
+    boolean isCSVFile(MultipartFile file);
+
     void importCSV(MultipartFile file);
 
     List<StatementDAO> getFilteredStatements(LocalDate startDate, LocalDate endDate);

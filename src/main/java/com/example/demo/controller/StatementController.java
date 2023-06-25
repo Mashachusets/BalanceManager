@@ -49,6 +49,10 @@ public class StatementController {
     )
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<String> importCSV(@RequestParam("file") MultipartFile file) {
+        if (!statementService.isCSVFile(file)) {
+            log.error("Invalid file format.");
+            return new ResponseEntity<>("Invalid file format", HttpStatus.BAD_REQUEST);
+        }
         statementService.importCSV(file);
         return new ResponseEntity<>("File uploaded successfully", HttpStatus.OK);
     }
@@ -71,7 +75,7 @@ public class StatementController {
         String filename = "statements.csv";
 
         response.setContentType("text/csv");
-        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"statements.csv\"");
 
         List<StatementDAO> filteredStatements = statementService.getFilteredStatements(startDate, endDate);
         String csvContent = statementService.generateCSV(filteredStatements);
@@ -85,6 +89,7 @@ public class StatementController {
             response = Statement.class)
     @ApiResponses(value = {
             @ApiResponse(code = 201, message = "The request has succeeded", response = Statement.class, responseContainer = "List"),
+            @ApiResponse(code = 400, message = "Missed required parameters, parameters are not valid"),
             @ApiResponse(code = 401, message = "The request requires user authentication"),
             @ApiResponse(code = 403, message = "Accessing the resource you were trying to reach is forbidden"),
             @ApiResponse(code = 404, message = "The server has not found anything matching the Request-URI"),

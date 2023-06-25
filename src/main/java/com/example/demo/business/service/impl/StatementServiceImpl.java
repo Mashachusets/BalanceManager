@@ -28,6 +28,24 @@ public class StatementServiceImpl implements StatementService {
     @Autowired
     private StatementMapper statementMapper;
 
+    int maxDateStringLength = 10;
+    String maxMySqlDateTimeValue = "9999-12-31T23:59:59";
+
+    public boolean isCSVFile(MultipartFile file) {
+        try {
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.equals("text/csv")) {
+                log.error("Invalid file format.");
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("Error occurred while checking file format: {}", e.getMessage());
+            // Perform any necessary error handling or logging
+            throw new RuntimeException("Error occurred while checking file format.", e);
+        }
+    }
+
     @Override
     public void importCSV(MultipartFile file) {
         log.info("Create new Statements by passing: {}", file);
@@ -44,7 +62,6 @@ public class StatementServiceImpl implements StatementService {
 
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             String[] line;
-            //TODO: check if file is empty after header
             while ((line = csvReader.readNext()) != null) {
                 StatementDAO statement = new StatementDAO();
                 statement.setAccountNumber(line[0]);
@@ -71,11 +88,15 @@ public class StatementServiceImpl implements StatementService {
     }
 
     public List<StatementDAO> getFilteredStatements(LocalDate startDate, LocalDate endDate) {
+        if ((String.valueOf(startDate).length() != maxDateStringLength && startDate != null )
+                || (String.valueOf(endDate).length() != maxDateStringLength && endDate != null)) {
+            throw new IllegalArgumentException("Invalid date input.");
+        }
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("Invalid date range. Start date must be before end date.");
         }
         LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
-        LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse("9999-12-31T23:59:59");
+        LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse(maxMySqlDateTimeValue);
 
         return statementRepository.findByOperationDateBetween(startLocalDateTime, endLocalDateTime);
     }
@@ -84,19 +105,21 @@ public class StatementServiceImpl implements StatementService {
         if (accountNumber == null) {
             throw new IllegalArgumentException("Input account number is required.");
         }
+//        if (String.valueOf(startDate).length() != maxDateStringLength || String.valueOf(endDate).length() != maxDateStringLength) {
+//            throw new IllegalArgumentException("Invalid date input.");
+//        }
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("Invalid date range. Start date must be before end date.");
-        } else {
-            LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
-            LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse("9999-12-31T23:59:59");
-            return statementRepository.findByAccountNumberAndOperationDateBetween(accountNumber, startLocalDateTime, endLocalDateTime);
         }
+        LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
+        LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse(maxMySqlDateTimeValue);
+        return statementRepository.findByAccountNumberAndOperationDateBetween(accountNumber, startLocalDateTime, endLocalDateTime);
     }
 
     public Map<String, BigDecimal> getMulticurrencyAmounts(String accountNumber, LocalDate startDate, LocalDate endDate) {
-        if (accountNumber == null) {
-            throw new IllegalArgumentException("Input account number is required.");
-        }
+//        if (accountNumber == null) {
+//            throw new IllegalArgumentException("Input account number is required.");
+//        }
         if (!(statementRepository.existsStatementByAccountNumber(accountNumber))) {
             throw new RuntimeException("Account does not exist: " + accountNumber);
         }
