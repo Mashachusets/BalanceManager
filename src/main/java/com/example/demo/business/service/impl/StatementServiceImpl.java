@@ -1,7 +1,6 @@
 package com.example.demo.business.service.impl;
 
 import com.example.demo.business.customExceptions.CustomExceptions;
-import com.example.demo.business.mappers.StatementMapper;
 import com.example.demo.business.repository.StatementRepository;
 import com.example.demo.business.repository.model.StatementDAO;
 import com.example.demo.business.service.StatementService;
@@ -25,9 +24,6 @@ public class StatementServiceImpl implements StatementService {
 
     @Autowired
     private StatementRepository statementRepository;
-
-    @Autowired
-    private StatementMapper statementMapper;
 
     @Autowired
     private CustomExceptions customExceptions;

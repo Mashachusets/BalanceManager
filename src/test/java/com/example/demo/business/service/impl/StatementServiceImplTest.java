@@ -1,7 +1,6 @@
 package com.example.demo.business.service.impl;
 
 import com.example.demo.business.customExceptions.CustomExceptions;
-import com.example.demo.business.mappers.StatementMapper;
 import com.example.demo.business.repository.StatementRepository;
 import com.example.demo.business.repository.model.StatementDAO;
 import org.junit.jupiter.api.Test;
@@ -31,9 +30,6 @@ public class StatementServiceImplTest {
 
     @Mock
     private StatementRepository statementRepositoryMock;
-
-    @Mock
-    private StatementMapper statementMapperMock;
 
     public StatementDAO createStatementDAO(String accountNumber, LocalDateTime operationDate, String beneficiary, String comment, BigDecimal amount, Currency currency) {
         StatementDAO statementDAO = new StatementDAO();
