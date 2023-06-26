@@ -1,5 +1,6 @@
 package com.example.demo.business.service.impl;
 
+import com.example.demo.business.customExceptions.CustomExceptions;
 import com.example.demo.business.mappers.StatementMapper;
 import com.example.demo.business.repository.StatementRepository;
 import com.example.demo.business.repository.model.StatementDAO;
@@ -28,6 +29,9 @@ public class StatementServiceImpl implements StatementService {
     @Autowired
     private StatementMapper statementMapper;
 
+    @Autowired
+    private CustomExceptions customExceptions;
+
     int maxDateStringLength = 10;
     String maxMySqlDateTimeValue = "9999-12-31T23:59:59";
 
@@ -36,13 +40,12 @@ public class StatementServiceImpl implements StatementService {
             String contentType = file.getContentType();
             if (contentType == null || !contentType.equals("text/csv")) {
                 log.error("Invalid file format.");
-                return false;
+                throw new CustomExceptions.FileFormatException("Invalid file format.");
             }
             return true;
         } catch (Exception e) {
             log.error("Error occurred while checking file format: {}", e.getMessage());
-            // Perform any necessary error handling or logging
-            throw new RuntimeException("Error occurred while checking file format.", e);
+            throw new CustomExceptions.FileFormatException("Error occurred while checking file format.", e);
         }
     }
 
@@ -50,12 +53,13 @@ public class StatementServiceImpl implements StatementService {
     public void importCSV(MultipartFile file) {
         log.info("Create new Statements by passing: {}", file);
         if (file.isEmpty()) {
-            throw new IllegalArgumentException("File is empty.");
+            log.error("The file you are importing is empty.");
+            throw new CustomExceptions.EmptyFileException("File is empty.");
         }
         try {
             Reader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
             CSVReader csvReader = new CSVReaderBuilder(reader)
-                    .withSkipLines(1) // Skip the header line
+                    .withSkipLines(1)
                     .build();
 
             List<StatementDAO> statements = new ArrayList<>();
@@ -70,7 +74,8 @@ public class StatementServiceImpl implements StatementService {
                 statement.setComment(line[3]);
                 BigDecimal amount = new BigDecimal(line[4]);
                 if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-                    throw new IllegalArgumentException("Amount must be greater than zero.");
+                    log.error("Importing amount is 0.");
+                    throw new CustomExceptions.InvalidAmountException("Amount must be greater than zero.");
                 }
                 statement.setAmount(amount);
                 statement.setCurrency(Currency.getInstance(line[5]));
@@ -80,53 +85,62 @@ public class StatementServiceImpl implements StatementService {
             statementRepository.saveAll(statements);
         } catch (IOException e) {
             log.error("Failed to read the file: {}", e.getMessage());
-            throw new RuntimeException("Failed to read the file: " + e.getMessage());
+            throw new CustomExceptions.FileReadException("Failed to read the file: " + e.getMessage());
         } catch (CsvValidationException e) {
             log.error("CSV validation error: {}", e.getMessage());
-            throw new RuntimeException("CSV validation error: " + e.getMessage());
+            throw new CustomExceptions.CsvValidationException("CSV validation error: " + e.getMessage());
         }
     }
 
     public List<StatementDAO> getFilteredStatements(LocalDate startDate, LocalDate endDate) {
-        if ((String.valueOf(startDate).length() != maxDateStringLength && startDate != null )
-                || (String.valueOf(endDate).length() != maxDateStringLength && endDate != null)) {
-            throw new IllegalArgumentException("Invalid date input.");
-        }
-        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("Invalid date range. Start date must be before end date.");
-        }
-        LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
-        LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse(maxMySqlDateTimeValue);
+        try {
+            if ((String.valueOf(startDate).length() != maxDateStringLength && startDate != null)
+                    || (String.valueOf(endDate).length() != maxDateStringLength && endDate != null)) {
+                throw new CustomExceptions.InvalidDateInputException("Invalid date input.");
+            }
+            if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+                log.error("Input date range is invalid.");
+                throw new CustomExceptions.InvalidDateRangeException("Invalid date range. Start date must be before end date.");
+            }
+            LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
+            LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse(maxMySqlDateTimeValue);
 
-        return statementRepository.findByOperationDateBetween(startLocalDateTime, endLocalDateTime);
+            return statementRepository.findByOperationDateBetween(startLocalDateTime, endLocalDateTime);
+        } catch (DateTimeParseException e) {
+            log.error("Input date is invalid. {}", e.getMessage());
+            throw new CustomExceptions.InvalidDateInputException("Invalid date input: " + e.getMessage());
+        }
     }
 
     public List<StatementDAO> getFilteredStatements(String accountNumber, LocalDate startDate, LocalDate endDate) {
         if (accountNumber == null) {
+            log.error("No input account number was provided.");
             throw new IllegalArgumentException("Input account number is required.");
         }
-//        if (String.valueOf(startDate).length() != maxDateStringLength || String.valueOf(endDate).length() != maxDateStringLength) {
-//            throw new IllegalArgumentException("Invalid date input.");
-//        }
-        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("Invalid date range. Start date must be before end date.");
+        try {
+            if ((String.valueOf(startDate).length() != maxDateStringLength && startDate != null)
+                    || (String.valueOf(endDate).length() != maxDateStringLength && endDate != null)) {
+                throw new CustomExceptions.InvalidDateInputException("Invalid date input.");
+            }
+            if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+                log.error("Input date range is invalid.");
+                throw new CustomExceptions.InvalidDateRangeException("Invalid date range. Start date must be before end date.");
+            }
+            LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
+            LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse(maxMySqlDateTimeValue);
+            return statementRepository.findByAccountNumberAndOperationDateBetween(accountNumber, startLocalDateTime, endLocalDateTime);
+        } catch (DateTimeParseException e) {
+            log.error("Input date is invalid. {}", e.getMessage());
+            throw new CustomExceptions.InvalidDateInputException("Invalid date input: " + e.getMessage());
         }
-        LocalDateTime startLocalDateTime = startDate != null ? startDate.atStartOfDay() : LocalDateTime.MIN;
-        LocalDateTime endLocalDateTime = endDate != null ? endDate.atStartOfDay() : LocalDateTime.parse(maxMySqlDateTimeValue);
-        return statementRepository.findByAccountNumberAndOperationDateBetween(accountNumber, startLocalDateTime, endLocalDateTime);
     }
 
     public Map<String, BigDecimal> getMulticurrencyAmounts(String accountNumber, LocalDate startDate, LocalDate endDate) {
-//        if (accountNumber == null) {
-//            throw new IllegalArgumentException("Input account number is required.");
-//        }
         if (!(statementRepository.existsStatementByAccountNumber(accountNumber))) {
-            throw new RuntimeException("Account does not exist: " + accountNumber);
+            log.error("Input account does not exist.");
+            throw new CustomExceptions.InvalidAccountException("Account does not exist: " + accountNumber);
         }
         try {
-            if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
-                throw new IllegalArgumentException("Invalid date range. Start date must be before end date.");
-            }
             List<StatementDAO> filteredStatements = getFilteredStatements(accountNumber, startDate, endDate);
 
             Map<String, BigDecimal> multicurrencyAmounts = new HashMap<>();
@@ -137,14 +151,17 @@ public class StatementServiceImpl implements StatementService {
                 multicurrencyAmounts.put(currency, amount);
             }
             return multicurrencyAmounts;
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("Invalid date format. Please provide dates in the format yyyy-MM-dd.", e);
-        } catch (Exception e) {
-            throw new RuntimeException("Error occurred while calculating multi currency amounts.", e);
+        }
+        catch (Exception e) {
+            throw new CustomExceptions.CalculationException("Error occurred while calculating multi currency amounts.", e);
         }
     }
 
     public String generateCSV(List<StatementDAO> statements) {
+        if (statements.isEmpty()) {
+            log.error("No statements found.");
+            throw new CustomExceptions.NoListFoundException("No statements provided for CSV generation.");
+        }
         StringWriter writer = new StringWriter();
 
         try (ICSVWriter csvWriter = new CSVWriterBuilder(writer)
@@ -170,9 +187,8 @@ public class StatementServiceImpl implements StatementService {
 
             csvWriter.flush();
         } catch (IOException e) {
-            throw new RuntimeException("Error occurred while generating CSV.", e);
+            throw new CustomExceptions.GenerateCsvException("Error occurred while generating CSV.", e);
         }
-
         return writer.toString();
     }
 }

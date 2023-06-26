@@ -8,6 +8,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
+import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,8 +23,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-@Api(tags = "Balance Manager Controller\n" +
-        "Controller used to get and create bank statements")
+@Api(tags = "Balance Manager Controller")
 @Log4j2
 @RestController
 @RequestMapping("/api")
@@ -72,8 +72,6 @@ public class StatementController {
                           @RequestParam(value = "startDate", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
                           @RequestParam(value = "endDate", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate)
             throws Exception {
-        String filename = "statements.csv";
-
         response.setContentType("text/csv");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"statements.csv\"");
 
@@ -96,9 +94,9 @@ public class StatementController {
             @ApiResponse(code = 500, message = "Server error")}
     )
     public ResponseEntity<Map<String, BigDecimal>> calculateBalance(HttpServletResponse response,
-                                 @PathVariable(value = "accountNumber") String accountNumber,
-                                 @RequestParam(value = "startDate", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-                                 @RequestParam(value = "endDate", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
+                                                                    @NonNull @PathVariable(value = "accountNumber") String accountNumber,
+                                                                    @RequestParam(value = "startDate", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+                                                                    @RequestParam(value = "endDate", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
         Map<String, BigDecimal> filteredAccountStatements = statementService.getMulticurrencyAmounts(accountNumber, startDate, endDate);
         return ResponseEntity.ok(filteredAccountStatements);
     }

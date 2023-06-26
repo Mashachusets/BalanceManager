@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.business.repository.StatementRepository;
 import com.example.demo.business.repository.model.StatementDAO;
 import com.example.demo.business.service.StatementService;
+import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mockito;
@@ -13,18 +14,16 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -123,35 +122,33 @@ public class StatementControllerTest {
 
     @Test
     public void shouldCalculateBalanceTest_Success() throws Exception {
-        // Prepare test data
         String accountNumber = "LT762218756725952425";
         LocalDate startDate = LocalDate.of(2023, 1, 1);
         LocalDate endDate = LocalDate.of(2023, 12, 31);
-        Map<String, BigDecimal> expectedResponse = new HashMap<>();
-        // Add expected values to the response map
 
-        MvcResult mvcResult = mockMvc.perform(get("/api/calculate/" + accountNumber)
+        Map<String, BigDecimal> expectedResponse = new HashMap<>();
+        expectedResponse.put("Currency1", new BigDecimal("100.00"));
+        expectedResponse.put("Currency2", new BigDecimal("200.00"));
+
+        when(statementService.getMulticurrencyAmounts(accountNumber, startDate, endDate))
+                .thenReturn(expectedResponse);
+
+        mockMvc.perform(get("/api/calculate/" + accountNumber)
                         .param("startDate", startDate.toString())
                         .param("endDate", endDate.toString()))
                 .andExpect(status().isOk())
-                .andReturn();
+                .andExpect(result -> {
+                    String responseBody = result.getResponse().getContentAsString();
+                    JSONObject responseJson = new JSONObject(responseBody);
 
-        String responseBody = mvcResult.getResponse().getContentAsString();
+                    BigDecimal currency1Value = new BigDecimal(responseJson.get("Currency1").toString())
+                            .setScale(2, RoundingMode.HALF_UP); // Set the scale to 2 decimal places
+                    BigDecimal currency2Value = new BigDecimal(responseJson.get("Currency2").toString())
+                            .setScale(2, RoundingMode.HALF_UP); // Set the scale to 2 decimal places
 
-        if (!responseBody.isEmpty()) {
-            Map<String, BigDecimal> actualResponse = new HashMap<>();
-
-            String[] keyValuePairs = responseBody.split(",");
-            for (String pair : keyValuePairs) {
-                String[] parts = pair.split(":");
-                if (parts.length == 2) {
-                    String key = parts[0].trim().replace("{", "");
-                    BigDecimal value = new BigDecimal(parts[1].trim().replace("}", ""));
-                    actualResponse.put(key, value);
-                }
-            }
-            assertEquals(expectedResponse, actualResponse);
-        }
+                    assertEquals(expectedResponse.get("Currency1"), currency1Value);
+                    assertEquals(expectedResponse.get("Currency2"), currency2Value);
+                });
     }
 
     @Test
